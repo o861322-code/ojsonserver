@@ -45,3 +45,4 @@ const InitializeSecrets = (options) => {
 };
 const options = InitializeExecuter();
 const secrets = InitializeSecrets(options);
+console.log(options);

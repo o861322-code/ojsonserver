@@ -52,3 +52,4 @@ Function InitializeSecrets([pscustomobject] $optionsExecuter) {
 }
 $options = InitializeExecuter
 $secrets = InitializeSecrets -optionsExecuter $options
+Write-Host $options

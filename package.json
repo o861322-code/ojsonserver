@@ -7,7 +7,8 @@
       "test": "echo \"Error: no test specified\" && exit 1",
       "build": "ncc build source/ojsonserver.js -o dist --minify --no-cache&&powershell copy dist/index.js dist/ojsonserver.js&&powershell Remove-Item dist/index.js&&powershell copy source/ojsonserver.ps1 dist/ojsonserver.ps1&&powershell Copy-Item -Path source/.githubsecrets/* -Destination dist/.githubsecrets/ -Recurse&&powershell copy source/option.executer.json dist/option.executer.json",
       "o861322_code-init": "powershell -ExecutionPolicy ByPass -File tools/synccode.ps1 -Kind Init -DirectoryPath E:/CLOUDCODE/gmail.com/ongtrieuhau861.322@gmail.com/github.com/o861322_code/ojsonserver",
-      "o861322_code-code": "powershell -ExecutionPolicy ByPass -File tools/synccode.ps1 -Kind ChangeCodeFiles -DirectoryPath E:/CLOUDCODE/gmail.com/ongtrieuhau861.322@gmail.com/github.com/o861322_code/ojsonserver"
+      "o861322_code-code": "powershell -ExecutionPolicy ByPass -File tools/synccode.ps1 -Kind ChangeCodeFiles -DirectoryPath E:/CLOUDCODE/gmail.com/ongtrieuhau861.322@gmail.com/github.com/o861322_code/ojsonserver",
+      "b": "ncc build source/ojsonserver.js -o dist --minify --no-cache&&powershell copy dist/index.js dist/ojsonserver.js&&powershell Remove-Item dist/index.js&&powershell copy source/ojsonserver.ps1 dist/ojsonserver.ps1&&powershell Copy-Item -Path source/.githubsecrets/* -Destination dist/.githubsecrets/ -Recurse&&powershell copy source/option.executer.json dist/option.executer.json"
    },
    "author": "",
    "license": "ISC"
