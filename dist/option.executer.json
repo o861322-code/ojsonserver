@@ -1,4 +1,4 @@
 {
-  "IsShowLogInitializeSecrets": true,
-  "DataDirectoryName": "data"
+   "IsShowLogInitializeSecrets": false,
+   "DataDirectoryName": "data"
 }
