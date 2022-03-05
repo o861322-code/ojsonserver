@@ -10,8 +10,8 @@ jobs:
       steps:
          - name: Checkout Repo
            uses: actions/checkout@v2
-         - name: Run PowerShell
-           shell: pwsh #Có dòng này không sử dụng được sefl-host, phải install powershell 7
-           run: ./dist/ojsonserver.ps1
+         #  - name: Run PowerShell
+         #    shell: pwsh #Có dòng này không sử dụng được sefl-host, phải install powershell 7
+         #    run: ./dist/ojsonserver.ps1
          - name: Run NodeJS
            run: node ./dist/ojsonserver.js
