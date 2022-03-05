@@ -1,4 +1,5 @@
 {
-   "IsShowLogInitializeSecrets": false,
-   "DataDirectoryName": "data"
+  "IsShowLogInitializeSecrets": false,
+  "DataDirectoryName": "data",
+  "DataExtensionFile": ".ojsonserver.json"
 }
