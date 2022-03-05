@@ -5,6 +5,7 @@ const JwtToken = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/googleA
 const oAxios = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAxios.js");
 const oUtils = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oUtils.js");
 const oCrytoJS = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oCrytoJS.js");
+const oBucket = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oBucket.js");
 
 let scopes = "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email";
 const metaOnHostFields = "a0metaonhost";
@@ -55,8 +56,135 @@ const InitializeSecrets = (options) => {
 const options = InitializeExecuter();
 const secrets = InitializeSecrets(options);
 
+const TransferTo = async (files, metaTo, field) => {
+   let uploadTos = secrets.CONFIG[field] || [];
+   let _gbucket_rootpath = (uploadTo) => {
+      if ("root_path" in uploadTo && oUtils.oString.IsNotEmpty(uploadTo.root_path)) {
+         return oUtils.oString.TrimStartEnd(uploadTo.root_path) + "/";
+      }
+      return "";
+   };
+   let _get_access_token = async (uploadTo, field) => {
+      if ("|rtdbs|gbuckets|".includes(field)) {
+         let upload_scopes = scopes;
+         switch (field) {
+            case "gbuckets":
+               upload_scopes = "https://www.googleapis.com/auth/devstorage.full_control";
+               break;
+         }
+         return JwtToken({ ...uploadTo, scopes: upload_scopes });
+      }
+      return undefined;
+   };
+   let _recheckConfig = async (uploadTo, field) => {
+      switch (field) {
+         case "gbuckets":
+            uploadTo.access_token = (await _get_access_token(uploadTo, field)).access_token;
+            break;
+         case "rtdbs":
+            uploadTo.access_token = (await _get_access_token(uploadTo, field)).access_token;
+            uploadTo.rtdb_url = oUtils.oString.TrimEnd(uploadTo.rtdb_url, "/");
+            uploadTo.metaonhost_url = `${uploadTo.rtdb_url}/${metaOnHostFields}.json`;
+            uploadTo.axios_config = { access_token: uploadTo.access_token, url: uploadTo.metaonhost_url };
+            break;
+      }
+      return uploadTo;
+   };
+   let _get_metaOn = async (uploadTo, field) => {
+      switch (field) {
+         case "rtdbs":
+            return oAxios.Get(uploadTo.axios_config).then((data) => Promise.resolve(oUtils.ToObjectForce(data)));
+            break;
+         case "gbuckets":
+            return oBucket.ReadJSONForce({ ...uploadTo, host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json` });
+            break;
+      }
+   };
+   let _create_promise_upload = (uploadTo, field, file) => {
+      switch (field) {
+         case "rtdbs":
+            return oAxios.Put({ access_token: uploadTo.access_token, url: `${uploadTo.rtdb_url}/${file.host_path}.json`, data: file.content_json });
+         case "gbuckets":
+            return oBucket.UploadFile({
+               ...uploadTo,
+               host_path: `${_gbucket_rootpath(uploadTo)}${file.host_path}.json`,
+               buffer: Buffer.from(JSON.stringify(file.content_json), "utf8"),
+               metadata: { onFunction: "_create_promise_upload" },
+            });
+      }
+   };
+   let _create_promise_delete = async (uploadTo, field, metaOn, key) => {
+      //console.log({ mess: `Vao day:`, uploadTo, field, metaOn, key });
+      switch (field) {
+         case "rtdbs":
+            return oAxios.Delete({ access_token: uploadTo.access_token, url: `${uploadTo.rtdb_url}/${metaOn[key]}.json` });
+            break;
+         case "gbuckets":
+            return oBucket
+               .Detele({
+                  ...uploadTo,
+                  host_path: `${_gbucket_rootpath(uploadTo)}${metaOn[key]}.json`,
+               })
+               .then((data) => console.log(`DeleteOK:${data}`))
+               .catch((error) => console.error(error));
+      }
+   };
+   let _create_promise_upload_meta = (uploadTo, field, metaTo) => {
+      switch (field) {
+         case "rtdbs":
+            return oAxios.Put({ access_token: uploadTo.access_token, url: uploadTo.metaonhost_url, data: metaTo }).then(() => {
+               console.log(`OK:${metaOnHostFields}:${uploadTo.metaonhost_url}`);
+            });
+            break;
+         case "gbuckets":
+            return oBucket
+               .UploadFile({
+                  ...uploadTo,
+                  host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json`,
+                  buffer: Buffer.from(JSON.stringify(metaTo), "utf8"),
+                  metadata: { onFunction: "_create_promise_upload_meta" },
+               })
+               .then((data) => console.log(`OK:${metaOnHostFields}:${data.id}`));
+            break;
+      }
+   };
+   let uploadTo = undefined;
+   let metaOn = undefined;
+   try {
+      for (let i = 0; i < uploadTos.length; i++) {
+         uploadTo = await _recheckConfig(uploadTos[i], field);
+         metaOn = await _get_metaOn(uploadTo, field);
+         if (!(metaTo.content_md5 in metaOn)) {
+            let allPromises = files
+               .filter((file) => !(file.content_md5 in metaOn))
+               .map((file) => {
+                  return _create_promise_upload(uploadTo, field, file);
+               });
+            Object.keys(metaOn).map((key) => {
+               if (key !== "content_md5" && !(key in metaTo) && key in metaOn) {
+                  allPromises.push(_create_promise_delete(uploadTo, field, metaOn, key));
+               }
+            });
+            if (allPromises && allPromises.length > 0) {
+               Promise.allSettled(allPromises).then((values) => {
+                  if (values.length > 0 && values.findIndex((value) => value.status !== "fulfilled") === -1) {
+                     _create_promise_upload_meta(uploadTo, field, metaTo);
+                  }
+               });
+            }
+         }
+      }
+   } catch (error) {
+      console.error(error);
+   } finally {
+      //console.log({ metaTo, uploadTo, metaOn });
+   }
+};
+
 (async () => {
-   //Get Files
+   /**
+    * !Get Local Files
+    */
    let dataPath = path.join(path.dirname(__filename), "..", options.DataDirectoryName);
    let files = oUtils.GetAllFiles(dataPath, []);
    files = files.filter((e) => e.toString().endsWith(options.DataExtensionFile)).sort();
@@ -80,37 +208,12 @@ const secrets = InitializeSecrets(options);
    /**
     * !Transfer data to rtdbs
     */
-   let rtdbs = secrets.CONFIG.rtdbs || [];
-   for (let i = 0; i < rtdbs.length; i++) {
-      let rtdb = rtdbs[i];
-      rtdb.access_token = (await JwtToken(rtdb.client_email, scopes, rtdb.private_key)).access_token;
-      rtdb.rtdb_url = oUtils.oString.TrimEnd(rtdb.rtdb_url, "/");
-      rtdb.metaonhost_url = `${rtdb.rtdb_url}/${metaOnHostFields}.json`;
-      rtdb.axios_config = { url: rtdb.metaonhost_url, access_token: rtdb.access_token };
-      await oAxios.Get(rtdb.axios_config).then((data) => {
-         let metaOn = oUtils.ToObjectForce(data);
-         if (!(metaTo.content_md5 in metaOn)) {
-            let allPromises = files
-               .filter((file) => !(file.content_md5 in metaOn))
-               .map((file) => {
-                  return oAxios.Put({ url: `${rtdb.rtdb_url}/${file.host_path}.json`, access_token: rtdb.access_token, data: file.content_json });
-               });
-            Object.keys(metaOn).map((key) => {
-               if (key !== "content_md5" && !(key in metaTo)) {
-                  allPromises.push(oAxios.Delete({ url: `${rtdb.rtdb_url}/${metaOn[key]}.json`, access_token: rtdb.access_token }));
-               }
-            });
-            if (allPromises && allPromises.length > 0) {
-               Promise.allSettled(allPromises).then((values) => {
-                  if (values.length > 0 && values.findIndex((value) => value.status !== "fulfilled") === -1) {
-                     oAxios.Put({ url: rtdb.metaonhost_url, access_token: rtdb.access_token, data: metaTo }).then((data) => {
-                        console.log(`OK:${metaOnHostFields}:${rtdb.metaonhost_url}`);
-                     });
-                  }
-               });
-            }
-         }
-      });
+   let transfer_fields = ["rtdbs", "gbuckets"];
+   for (let i = 0; i < transfer_fields.length; i++) {
+      let upload_field = transfer_fields[i];
+      if (options[`IsTransferTo_${upload_field}`] === true) {
+         TransferTo(files, metaTo, upload_field);
+      }
    }
    return;
 })();

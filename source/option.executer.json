@@ -1,5 +1,7 @@
 {
   "IsShowLogInitializeSecrets": false,
   "DataDirectoryName": "data",
-  "DataExtensionFile": ".ojsonserver.json"
+  "DataExtensionFile": ".ojsonserver.json",
+  "IsTransferTo_gbuckets": true,
+  "IsTransferTo_rtdbs": true
 }
