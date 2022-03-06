@@ -6,6 +6,7 @@ const oAxios = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAxios.js
 const oUtils = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oUtils.js");
 const oCrytoJS = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oCrytoJS.js");
 const oBucket = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oBucket.js");
+const oAzGit = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAzGit.js");
 
 let scopes = "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email";
 const metaOnHostFields = "a0metaonhost";
@@ -94,10 +95,10 @@ const TransferTo = async (files, metaTo, field) => {
       switch (field) {
          case "rtdbs":
             return oAxios.Get(uploadTo.axios_config).then((data) => Promise.resolve(oUtils.ToObjectForce(data)));
-            break;
          case "gbuckets":
             return oBucket.ReadJSONForce({ ...uploadTo, host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json` });
-            break;
+         case "azgits":
+            return oAzGit.ReadJSONForce({ ...uploadTo, host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json` });
       }
    };
    let _create_promise_upload = (uploadTo, field, file) => {
@@ -110,6 +111,7 @@ const TransferTo = async (files, metaTo, field) => {
                host_path: `${_gbucket_rootpath(uploadTo)}${file.host_path}.json`,
                buffer: Buffer.from(JSON.stringify(file.content_json), "utf8"),
                metadata: { onFunction: "_create_promise_upload" },
+               isallUsersREADER: uploadTo.is_anyone === true ? true : false,
             });
       }
    };
@@ -143,6 +145,7 @@ const TransferTo = async (files, metaTo, field) => {
                   host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json`,
                   buffer: Buffer.from(JSON.stringify(metaTo), "utf8"),
                   metadata: { onFunction: "_create_promise_upload_meta" },
+                  isallUsersREADER: uploadTo.is_anyone === true ? true : false,
                })
                .then((data) => console.log(`OK:${metaOnHostFields}:${data.id}`));
             break;
@@ -154,24 +157,61 @@ const TransferTo = async (files, metaTo, field) => {
       for (let i = 0; i < uploadTos.length; i++) {
          uploadTo = await _recheckConfig(uploadTos[i], field);
          metaOn = await _get_metaOn(uploadTo, field);
+         //console.log({ metaTo, metaOn, field });
+         let allPromises = undefined;
+         let changeFiles = undefined;
          if (!(metaTo.content_md5 in metaOn)) {
-            let allPromises = files
-               .filter((file) => !(file.content_md5 in metaOn))
-               .map((file) => {
-                  return _create_promise_upload(uploadTo, field, file);
-               });
+            let filter_files = files.filter((file) => !(file.content_md5 in metaOn));
+            console.log({ metaTo, metaOn, field, filter_files });
+            if (files.length > 0) {
+               switch (field) {
+                  case "rtdbs":
+                  case "gbuckets":
+                     allPromises = filter_files.map((file) => {
+                        return _create_promise_upload(uploadTo, field, file);
+                     });
+                     break;
+                  case "azgits":
+                     changeFiles = filter_files.map((file) => file);
+                     break;
+               }
+            }
             Object.keys(metaOn).map((key) => {
                if (key !== "content_md5" && !(key in metaTo) && key in metaOn) {
-                  allPromises.push(_create_promise_delete(uploadTo, field, metaOn, key));
+                  /**
+                   * *host_path này phải không nằm trong metaOn
+                   */
+                  if (Object.values(metaTo).findIndex((el) => el === metaOn[key]) === -1) {
+                     switch (field) {
+                        case "rtdbs":
+                        case "gbuckets":
+                           allPromises = allPromises || [];
+                           allPromises.push(_create_promise_delete(uploadTo, field, metaOn, key));
+                           break;
+                        case "azgits":
+                           changeFiles = changeFiles || [];
+                           changeFiles.push({ host_path: `${metaOn[key]}`, changeType: "delete" });
+                           break;
+                     }
+                  }
                }
             });
-            if (allPromises && allPromises.length > 0) {
-               Promise.allSettled(allPromises).then((values) => {
-                  if (values.length > 0 && values.findIndex((value) => value.status !== "fulfilled") === -1) {
-                     _create_promise_upload_meta(uploadTo, field, metaTo);
-                  }
-               });
-            }
+         }
+         if (allPromises && allPromises.length > 0) {
+            Promise.allSettled(allPromises).then((values) => {
+               if (values.length > 0 && values.findIndex((value) => value.status !== "fulfilled") === -1) {
+                  _create_promise_upload_meta(uploadTo, field, metaTo);
+               }
+            });
+         }
+         if (changeFiles && changeFiles.length > 0) {
+            changeFiles.push({ host_path: `${metaOnHostFields}`, content_json: metaTo });
+            let buffer_files = changeFiles.map((file) => {
+               let buffer_file = { path: `${_gbucket_rootpath(uploadTo)}${file.host_path}.json`, changeType: file.changeType };
+               if (buffer_file.changeType !== "delete") buffer_file.buffer = Buffer.from(JSON.stringify(file.content_json), "utf8");
+               return buffer_file;
+            });
+            oAzGit.Push({ ...uploadTo, comment: "changeFiles", buffer_files: buffer_files }).then((data) => console.log(data.url));
          }
       }
    } catch (error) {
@@ -204,11 +244,12 @@ const TransferTo = async (files, metaTo, field) => {
    }, {});
    metaTo.content_md5 = oCrytoJS.HashMD5Object(metaTo);
    if (files.length === 0) return;
-
+   //console.log({ metaTo, files });
+   //return;
    /**
     * !Transfer data to rtdbs
     */
-   let transfer_fields = ["rtdbs", "gbuckets"];
+   let transfer_fields = ["rtdbs", "gbuckets", "azgits"];
    for (let i = 0; i < transfer_fields.length; i++) {
       let upload_field = transfer_fields[i];
       if (options[`IsTransferTo_${upload_field}`] === true) {
