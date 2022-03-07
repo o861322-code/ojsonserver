@@ -8,6 +8,7 @@ const oCrytoJS = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oCrytoJ
 const oBucket = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oBucket.js");
 const oAzGit = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAzGit.js");
 const oAzTfvc = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAzTfvc.js");
+const oGithub = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oGithub.js");
 
 let scopes = "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email";
 const metaOnHostFields = "a0metaonhost";
@@ -102,6 +103,8 @@ const TransferTo = async (files, metaTo, field) => {
             return oAzGit.ReadJSONForce({ ...uploadTo, host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json` });
          case "aztfvcs":
             return oAzTfvc.ReadJSONForce({ ...uploadTo, host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json` });
+         case "githubs":
+            return oGithub.ReadJSONForce({ ...uploadTo, host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json` });
       }
    };
    let _create_promise_upload = (uploadTo, field, file) => {
@@ -176,6 +179,7 @@ const TransferTo = async (files, metaTo, field) => {
                      break;
                   case "azgits":
                   case "aztfvcs":
+                  case "githubs":
                      changeFiles = filter_files.map((file) => file);
                      break;
                }
@@ -194,6 +198,7 @@ const TransferTo = async (files, metaTo, field) => {
                            break;
                         case "azgits":
                         case "aztfvcs":
+                        case "githubs":
                            changeFiles = changeFiles || [];
                            changeFiles.push({ host_path: `${metaOn[key]}`, changeType: "delete" });
                            break;
@@ -209,11 +214,13 @@ const TransferTo = async (files, metaTo, field) => {
                }
             });
          }
+         // console.log(JSON.stringify(changeFiles, null, 1));
+         // return;
          if (changeFiles && changeFiles.length > 0) {
             changeFiles.push({ host_path: `${metaOnHostFields}`, content_json: metaTo });
             let buffer_files = changeFiles.map((file) => {
                let buffer_file = { path: `${_gbucket_rootpath(uploadTo)}${file.host_path}.json`, changeType: file.changeType };
-               if (buffer_file.changeType !== "delete") buffer_file.buffer = Buffer.from(JSON.stringify(file.content_json), "utf8");
+               if (buffer_file.changeType !== "delete") buffer_file.buffer = Buffer.from(JSON.stringify(file.content_json, null, 4), "utf8");
                return buffer_file;
             });
             switch (field) {
@@ -222,6 +229,27 @@ const TransferTo = async (files, metaTo, field) => {
                   break;
                case "aztfvcs":
                   oAzTfvc.Changesets({ ...uploadTo, comment: "changeFiles", buffer_files: buffer_files }).then((data) => console.log(data.url));
+                  break;
+               case "githubs":
+                  let deleteFiles = buffer_files.filter((file) => file.changeType === "delete");
+                  // console.log(JSON.stringify(deleteFiles, null, 1));
+                  if (deleteFiles && deleteFiles.length > 0) {
+                     for (let i = 0; i < deleteFiles.length; i++) {
+                        let file = deleteFiles[i];
+                        await oGithub.Delete({ ...uploadTo, path: file.path, host_path: file.host_path });
+                     }
+                  }
+                  let commitFiles = buffer_files.filter((file) => file.changeType !== "delete");
+                  if (commitFiles && commitFiles.length > 0) {
+                     if (!(deleteFiles && deleteFiles.length > 0)) {
+                        oGithub.Commits({ ...uploadTo, comment: "changeFiles", buffer_files: commitFiles }).then((data) => console.log(data));
+                     } else {
+                        console.log(`SleepSeconds(3);`);
+                        oUtils.SleepSeconds(3).then(() => {
+                           oGithub.Commits({ ...uploadTo, comment: "changeFiles", buffer_files: commitFiles }).then((data) => console.log(data));
+                        });
+                     }
+                  }
                   break;
             }
          }
@@ -261,12 +289,11 @@ const TransferTo = async (files, metaTo, field) => {
    /**
     * !Transfer data to rtdbs
     */
-   let transfer_fields = ["rtdbs", "gbuckets", "azgits", "aztfvcs"];
+   let transfer_fields = ["rtdbs", "gbuckets", "azgits", "aztfvcs", "githubs"];
    for (let i = 0; i < transfer_fields.length; i++) {
       let upload_field = transfer_fields[i];
       if (options[`IsTransferTo_${upload_field}`] === true) {
          TransferTo(files, metaTo, upload_field);
       }
    }
-   return;
 })();

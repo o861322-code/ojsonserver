@@ -5,5 +5,6 @@
   "IsTransferTo_gbuckets": true,
   "IsTransferTo_rtdbs": true,
   "IsTransferTo_azgits": true,
-  "IsTransferTo_aztfvcs": true
+  "IsTransferTo_aztfvcs": true,
+  "IsTransferTo_githubs": true
 }
