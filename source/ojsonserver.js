@@ -7,6 +7,7 @@ const oUtils = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oUtils.js
 const oCrytoJS = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oCrytoJS.js");
 const oBucket = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oBucket.js");
 const oAzGit = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAzGit.js");
+const oAzTfvc = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAzTfvc.js");
 
 let scopes = "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email";
 const metaOnHostFields = "a0metaonhost";
@@ -99,6 +100,8 @@ const TransferTo = async (files, metaTo, field) => {
             return oBucket.ReadJSONForce({ ...uploadTo, host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json` });
          case "azgits":
             return oAzGit.ReadJSONForce({ ...uploadTo, host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json` });
+         case "aztfvcs":
+            return oAzTfvc.ReadJSONForce({ ...uploadTo, host_path: `${_gbucket_rootpath(uploadTo)}${metaOnHostFields}.json` });
       }
    };
    let _create_promise_upload = (uploadTo, field, file) => {
@@ -157,12 +160,12 @@ const TransferTo = async (files, metaTo, field) => {
       for (let i = 0; i < uploadTos.length; i++) {
          uploadTo = await _recheckConfig(uploadTos[i], field);
          metaOn = await _get_metaOn(uploadTo, field);
-         //console.log({ metaTo, metaOn, field });
+         // console.log({ metaOn, metaTo, uploadTo, field });
+         // return;
          let allPromises = undefined;
          let changeFiles = undefined;
          if (!(metaTo.content_md5 in metaOn)) {
             let filter_files = files.filter((file) => !(file.content_md5 in metaOn));
-            console.log({ metaTo, metaOn, field, filter_files });
             if (files.length > 0) {
                switch (field) {
                   case "rtdbs":
@@ -172,6 +175,7 @@ const TransferTo = async (files, metaTo, field) => {
                      });
                      break;
                   case "azgits":
+                  case "aztfvcs":
                      changeFiles = filter_files.map((file) => file);
                      break;
                }
@@ -189,6 +193,7 @@ const TransferTo = async (files, metaTo, field) => {
                            allPromises.push(_create_promise_delete(uploadTo, field, metaOn, key));
                            break;
                         case "azgits":
+                        case "aztfvcs":
                            changeFiles = changeFiles || [];
                            changeFiles.push({ host_path: `${metaOn[key]}`, changeType: "delete" });
                            break;
@@ -211,7 +216,14 @@ const TransferTo = async (files, metaTo, field) => {
                if (buffer_file.changeType !== "delete") buffer_file.buffer = Buffer.from(JSON.stringify(file.content_json), "utf8");
                return buffer_file;
             });
-            oAzGit.Push({ ...uploadTo, comment: "changeFiles", buffer_files: buffer_files }).then((data) => console.log(data.url));
+            switch (field) {
+               case "azgits":
+                  oAzGit.Push({ ...uploadTo, comment: "changeFiles", buffer_files: buffer_files }).then((data) => console.log(data.url));
+                  break;
+               case "aztfvcs":
+                  oAzTfvc.Changesets({ ...uploadTo, comment: "changeFiles", buffer_files: buffer_files }).then((data) => console.log(data.url));
+                  break;
+            }
          }
       }
    } catch (error) {
@@ -249,7 +261,7 @@ const TransferTo = async (files, metaTo, field) => {
    /**
     * !Transfer data to rtdbs
     */
-   let transfer_fields = ["rtdbs", "gbuckets", "azgits"];
+   let transfer_fields = ["rtdbs", "gbuckets", "azgits", "aztfvcs"];
    for (let i = 0; i < transfer_fields.length; i++) {
       let upload_field = transfer_fields[i];
       if (options[`IsTransferTo_${upload_field}`] === true) {
