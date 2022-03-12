@@ -1,15 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const JwtToken = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/googleAuth/jwt.js").JwtToken;
-// const oAxios = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAxios.js");
 const oUtils = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oUtils.js");
-// const oCrytoJS = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oCrytoJS.js");
-// const oBucket = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oBucket.js");
-// const oAzGit = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAzGit.js");
-// const oAzTfvc = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oAzTfvc.js");
-// const oGithub = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oGithub.js");
-// const oGDrive = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/oGDrive.js");
 const JsonServer = require("E:/CLOUDCODE/Github/oListRepos/NodeJS/oModules/JsonServer.js");
 
 const InitializeExecuter = () => {
@@ -73,9 +65,13 @@ const GetConfigHosts = () => {
    oUtils.Log.SetLogDirectoryPath(path.join(path.dirname(__filename), "logs"));
    let dataPath = path.join(path.dirname(__filename), "..", options.DataDirectoryName);
    let metaTo = JsonServer.LoadLocalMetaTo(options, dataPath);
+   let s2 = { count_file: metaTo.syncfiles.length, detail: metaTo.syncfiles.map((syncfile) => syncfile.host_path).join("\n") };
    let configHosts = GetConfigHosts();
    for (let i = 0; i < configHosts.length; i++) {
-      JsonServer.AcceptChanges(JSON.parse(JSON.stringify(metaTo)), configHosts[i]);
-      // if (i === 4) break;
+      let config = configHosts[i];
+      let cloneMetaTo = JSON.parse(JSON.stringify(metaTo));
+      config.execute_status = { s0: `[${i + 1}/${configHosts.length}]`, s1: `${config.id_host}`, s2: s2 };
+      config.execute_status.time = { start: new Date().getTime() };
+      JsonServer.AcceptChanges(cloneMetaTo, config);
    }
 })();

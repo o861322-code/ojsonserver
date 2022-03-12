@@ -1,6 +1,16 @@
 {
-   "IsShowLogInitializeSecrets": false,
-   "DataDirectoryName": "data",
-   "DataExtensionFile": ".ojsonserver.json",
-   "ConfigSyncFields": ["rtdbs", "gbuckets", "azgits", "aztfvcs", "githubs", "gdrives"]
+  "IsShowLogInitializeSecrets": false,
+  "DataDirectoryName": "data",
+  "DataExtensionFile": ".ojsonserver.json",
+  "ConfigSyncFields": [
+    "rtdbs",
+    "gbuckets",
+    "azgits",
+    "aztfvcs",
+    "githubs",
+    "gdrives"
+  ],
+  "ConfigSyncFields_test": [
+    "gbuckets"
+  ]
 }
